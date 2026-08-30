@@ -41,41 +41,66 @@ pip install -r requirements.txt
 ```
 
 Tested with Python 3.10–3.12. A CUDA GPU is recommended but not required; the
-code falls back to CPU automatically.
+code falls back to CPU automatically. `requirements.txt` also covers
+`data_preprocessing/`, which additionally needs MNE-Python, pandas, requests
+and tqdm.
 
 If you want a specific CUDA build of PyTorch, install it first from
 <https://pytorch.org/get-started/locally/> and then run the `pip install` above.
 
 ## Dataset
 
-This code consumes **preprocessed epoch archives**, not raw EEG. Download them
-here:
+We do not redistribute the corpora. `data_preprocessing/` downloads them from
+their original sources and rebuilds the epoch archives this code consumes.
 
-<https://drive.google.com/drive/folders/1NccCSBwlaa9f8TmYOkl9SPJOHJRX00WY?usp=sharing>
+First set the one placeholder in `config.py`:
 
-Unpack so that the layout is:
+```python
+DATA_ROOT = Path(r"D:/PATH/TO/dataset/processed")   # <-- change this
+```
+
+Raw downloads go to its sibling `raw/`, processed archives to `DATA_ROOT`
+itself. Override both with the `CAFG_DATA_ROOT` environment variable if you
+prefer to keep them elsewhere.
+
+Then run, from inside `data_preprocessing/`:
+
+```bash
+cd data_preprocessing
+python download_karaone.py     # ~24 GB, the slow one
+python preprocess_karaone.py   # ~8 min per subject, ICA dominates
+```
+
+FEIS is optional; the reported operating point uses KaraOne only:
+
+```bash
+python download_feis.py        # ~1.6 GB
+python preprocess_feis.py      # ~15 s per subject
+```
+
+Both stages are idempotent: an existing download or an existing `.npz` is
+skipped, so an interrupted run can simply be restarted.
+
+The result is:
 
 ```
-<somewhere>/processed/
+<DATA_ROOT>/
 ├── karaone/
 │   ├── MM05.npz
 │   ├── MM08.npz
-│   └── ...
+│   ├── ...
+│   └── manifest.csv
 └── feis/
     └── ...
 ```
 
 Each `.npz` holds `X` of shape `(n_trials, n_channels, 1280)` (5 s at 256 Hz,
 band-pass filtered, baseline-corrected and z-scored per channel), `y` as string
-prompt labels, and `trial_id`.
+prompt labels, and `trial_id`. `manifest.csv` records how many trials each
+subject contributed and how many were rejected.
 
-Then **edit `config.py`** and set the one placeholder:
-
-```python
-DATA_ROOT = Path(r"D:/PATH/TO/dataset/processed")   # <-- change this
-```
-
-Everything else in `config.py` already holds the values reported in the paper.
+KaraOne is free for academic, non-profit use; FEIS is under the Open Data
+Commons Attribution License. Please honour both and cite the original authors.
 
 ## Running
 
@@ -136,6 +161,13 @@ CAFG-A/
 ├── config.py            paths and the reported operating point
 ├── run_cafga.py         LOSO driver
 ├── requirements.txt
+├── data_preprocessing/
+│   ├── paths.py             raw / processed locations
+│   ├── download_karaone.py  fetch KaraOne from Toronto
+│   ├── download_feis.py     fetch FEIS from Zenodo
+│   ├── eeg_preprocessing.py steps shared by both corpora
+│   ├── preprocess_karaone.py
+│   └── preprocess_feis.py
 └── cafga/
     ├── data.py          loading, Euclidean Alignment, splits
     ├── model.py         EEGNet-8,2
