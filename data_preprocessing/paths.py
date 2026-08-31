@@ -1,4 +1,4 @@
-"""Where the raw downloads and the processed archives live."""
+"""Locations of the raw downloads and the processed archives."""
 
 import os
 import sys

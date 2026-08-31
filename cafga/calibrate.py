@@ -1,4 +1,5 @@
-"""Unlabelled prior matching and subject-adaptive shrinkage temperature (Eq. 3)."""
+"""Class-prior matching on unlabelled trials, and temperature scaling shrunk
+toward a pooled source temperature."""
 
 import numpy as np
 from scipy.optimize import minimize
@@ -10,12 +11,6 @@ SIGMA2_FLOOR = 1e-6
 
 
 def fit_prior_shift(logits, step=0.5, n_iter=50):
-    """Per-class logit shift driving the mean prediction onto the uniform prior.
-
-    A cross-subject decoder lands on a new subject with a skewed marginal. The
-    task prior is known and uniform, so the skew is removable with no labels,
-    from the same unlabelled trials Euclidean Alignment already uses.
-    """
     logits = np.asarray(logits, dtype=np.float64)
     k = logits.shape[1]
     target = np.log(np.full(k, 1.0 / k))
@@ -36,11 +31,8 @@ def _nll(log_t, logits, y):
 
 
 def _minimise(objective):
-    """Coarse grid scan before L-BFGS.
-
-    The objective is flat in log T whenever the decoder is close to chance, so a
-    solver started from a single point stops wherever it began.
-    """
+    # The objective is flat in log T near chance accuracy, so scan a grid
+    # before refining; a solver started from a single point does not move.
     values = np.array([objective(g) for g in GRID])
     start = float(GRID[int(np.argmin(values))])
     res = minimize(lambda v: objective(v[0]), x0=np.array([start]),
@@ -51,7 +43,6 @@ def _minimise(objective):
 
 
 def fit_temperature(logits, y):
-    """Unregularised MLE; pooled over source subjects this is T_0."""
     return float(np.exp(_minimise(lambda v: _nll(v, logits, y))))
 
 
@@ -61,13 +52,11 @@ def source_temperature_dispersion(logits, y, subject):
     return float(max(np.var(np.log(temps), ddof=1), SIGMA2_FLOOR))
 
 
-def lambda_star(n_cal, sigma2_log_t):
-    """Empirical-Bayes shrinkage strength for the averaged likelihood of Eq. (3)."""
+def shrinkage_strength(n_cal, sigma2_log_t):
     return 1.0 / (n_cal * max(sigma2_log_t, SIGMA2_FLOOR))
 
 
-def fit_sasts_temperature(logits, y, t0, lam):
-    """MAP temperature under log T_s ~ N(log T_0, sigma^2) (Eq. 3)."""
+def fit_shrunk_temperature(logits, y, t0, lam):
     if not np.isfinite(lam):
         return float(t0)
     log_t0 = np.log(t0)
@@ -79,10 +68,6 @@ def fit_sasts_temperature(logits, y, t0, lam):
 
 
 def apply_temperature(logits, t):
-    """Scale in float64.
-
-    A large T squeezes the logit gaps toward zero; in float32 two neighbouring
-    classes can round to the same probability and flip the argmax, breaking the
-    invariance temperature scaling is supposed to have.
-    """
+    # float64: a large T shrinks the logit gaps, and in float32 neighbouring
+    # classes can round to the same probability and flip the argmax.
     return softmax(np.asarray(logits, dtype=np.float64) / t, axis=1)

@@ -1,19 +1,17 @@
-"""Closed-form cost-optimal confirmation gate (Eq. 4-7)."""
+"""Cost-optimal confirmation gate: choose the candidate-list size, then accept or confirm."""
 
 import numpy as np
 
 
 def optimal_list_size(probs_sorted, c_e, c_s):
-    """k*(x) = max{k >= 2 : p_(k) > c_s / c_e}, clipped to [2, K] (Eq. 6)."""
     above = probs_sorted > c_s / c_e
     k = above.cumprod(axis=1).sum(axis=1)
     return np.clip(k, 2, probs_sorted.shape[1]).astype(int)
 
 
 def accept_decision(probs_sorted, k_star, c_e, c_f, c_s):
-    """Accept iff the runner-up mass cannot pay for the dialog (Eq. 7)."""
-    cum = np.cumsum(probs_sorted, axis=1)
-    runner_up = cum[np.arange(len(k_star)), k_star - 1] - probs_sorted[:, 0]
+    cumulative = np.cumsum(probs_sorted, axis=1)
+    runner_up = cumulative[np.arange(len(k_star)), k_star - 1] - probs_sorted[:, 0]
     budget = c_f / c_e + (c_s / c_e) * (k_star - 1)
     return runner_up <= budget
 

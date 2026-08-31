@@ -1,4 +1,4 @@
-"""EEGNet-8,2 (Lawhern et al., 2018) with its max-norm constraints."""
+"""EEGNet-8,2 (Lawhern et al., 2018), including its max-norm constraints."""
 
 import torch
 from torch import nn

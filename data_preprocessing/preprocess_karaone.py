@@ -1,11 +1,8 @@
-"""Turn the raw KaraOne recordings into per-subject epoch archives.
+"""Build per-subject KaraOne epoch archives from the raw recordings.
 
-Band-pass and notch on the continuous recording, FastICA eye-artefact removal,
-resample to 256 Hz, common-average reference, epoch the imagined-speech
-("thinking") window, baseline-correct against that trial's own clearing
-interval, drop bad epochs, then z-score per channel within subject.
-
-Writes <DATA_ROOT>/processed/karaone/<subject>.npz plus a manifest.
+Band-pass and notch, FastICA eye-artefact removal, resample to 256 Hz,
+common-average reference, epoch the imagined-speech window, baseline-correct
+against the preceding clearing interval, drop bad epochs, z-score per channel.
 """
 
 import csv

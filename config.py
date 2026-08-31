@@ -1,4 +1,4 @@
-"""Paths and the single operating point reported in the paper."""
+"""Paths and hyper-parameters."""
 
 from pathlib import Path
 

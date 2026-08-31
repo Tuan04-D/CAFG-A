@@ -1,4 +1,4 @@
-"""Loading, Euclidean Alignment, and the leakage-checked LOSO splits."""
+"""Epoch archive loading, Euclidean Alignment, and leave-one-subject-out splits."""
 
 import hashlib
 from dataclasses import dataclass
@@ -34,11 +34,6 @@ def load_all():
 
 
 def euclidean_alignment(x, eps=1e-6):
-    """Whiten a subject's trials by their mean spatial covariance (Eq. 1).
-
-    Uses the trials only, never the labels, so it stays valid on the
-    unlabelled target block.
-    """
     cov = np.einsum("ncs,nds->cd", x, x, optimize=True) / (x.shape[0] * x.shape[2])
     cov = cov + eps * np.trace(cov) / cov.shape[0] * np.eye(cov.shape[0])
     w, v = np.linalg.eigh(cov)
@@ -54,14 +49,15 @@ def align(subjects, enabled=True):
             for k, v in subjects.items()}
 
 
-def _stable_seed(seed, key):
+def stable_seed(seed, key):
+    # Python's hash() is salted per process and would not replay.
     digest = hashlib.sha256(f"{seed}|{key}".encode()).digest()
     return int.from_bytes(digest[:8], "little")
 
 
 def make_fold(seed, target, subjects, n_srcval):
     others = [s for s in subjects if s != target]
-    order = np.random.default_rng(_stable_seed(seed, target)).permutation(len(others))
+    order = np.random.default_rng(stable_seed(seed, target)).permutation(len(others))
     srcval = tuple(sorted(others[i] for i in order[:n_srcval]))
     train = tuple(sorted(others[i] for i in order[n_srcval:]))
     assert target not in train and target not in srcval
@@ -70,8 +66,7 @@ def make_fold(seed, target, subjects, n_srcval):
 
 
 def calibration_split(y, trial_id, n_cal, seed, subject):
-    """Split the target subject into the session block D_cal and D_test."""
-    rng = np.random.default_rng(_stable_seed(seed, f"cal-{subject}"))
+    rng = np.random.default_rng(stable_seed(seed, f"cal-{subject}"))
     pools = {c: rng.permutation(np.flatnonzero(y == c)).tolist()
              for c in np.unique(y)}
     order = []

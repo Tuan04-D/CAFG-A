@@ -1,8 +1,4 @@
-"""Preprocessing steps shared by both corpora.
-
-Euclidean Alignment is deliberately not here: it depends on which subject is
-held out in a given LOSO fold, so it belongs in the training-time loader.
-"""
+"""Preprocessing steps shared by both corpora."""
 
 import mne
 import numpy as np
@@ -12,11 +8,8 @@ EPOCH_SAMPLES = 1280
 
 
 def filter_continuous(data, sfreq, l_freq, h_freq, notch_freq):
-    """IIR (Butterworth) filtering.
-
-    An FIR filter needs a length several times the signal, which a 5 s epoch
-    cannot supply; IIR has no such constraint.
-    """
+    # IIR: an FIR filter needs a length several times the signal, which a
+    # 5 s epoch cannot supply.
     data = mne.filter.notch_filter(data, sfreq, notch_freq, method="iir",
                                    verbose=False)
     data = mne.filter.filter_data(data, sfreq, l_freq, h_freq, method="iir",
@@ -33,7 +26,6 @@ def common_average_reference(data):
 
 
 def remove_eog_ica(raw, eog_proxy_channels, n_components=20, random_state=97):
-    """Drop eye-movement components, using frontal channels as an EOG proxy."""
     ica = mne.preprocessing.ICA(n_components=n_components, method="fastica",
                                 random_state=random_state, max_iter="auto")
     ica.fit(raw, verbose=False)
@@ -48,13 +40,6 @@ def remove_eog_ica(raw, eog_proxy_channels, n_components=20, random_state=97):
 
 
 def drop_bad_epochs(x, k=5.0):
-    """Keep epochs whose worst-channel peak-to-peak stays under median + k*MAD.
-
-    AutoReject was tried first: on these single-subject batches of ~150 trials
-    its threshold search returns essentially the sample maximum and rejects
-    nothing, while the full algorithm rejects over half of FEIS, whose 14
-    channels leave little room for per-epoch interpolation.
-    """
     ptp = (x.max(axis=2) - x.min(axis=2)).max(axis=1)
     median = np.median(ptp)
     mad = np.median(np.abs(ptp - median))

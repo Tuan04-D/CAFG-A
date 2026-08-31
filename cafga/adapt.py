@@ -1,4 +1,5 @@
-"""Backbone training, shrinkage head adaptation (Eq. 2), and cross-fitting."""
+"""Backbone training, classifier-head adaptation on the calibration block, and
+cross-fitted logits for that same block."""
 
 import copy
 
@@ -29,11 +30,6 @@ def forward_logits(model, x, device, batch=128):
 
 def train_backbone(x_tr, y_tr, x_va, y_va, n_channels, n_classes, seed, device,
                    backbone, training):
-    """Fit f_theta, early-stopping on a smoothed source-validation balanced accuracy.
-
-    Validation cross-entropy is not usable here: it is minimised at epoch 0
-    while accuracy is still rising.
-    """
     set_seed(seed)
     model = EEGNet(n_channels, n_classes, x_tr.shape[2], **backbone).to(device)
     opt = torch.optim.AdamW(model.parameters(), lr=training["lr"],
@@ -59,6 +55,8 @@ def train_backbone(x_tr, y_tr, x_va, y_va, n_channels, n_classes, seed, device,
             loss_fn(model(x_tr_t[idx]), y_tr_t[idx]).backward()
             opt.step()
 
+        # Early stopping tracks a smoothed balanced accuracy; validation
+        # cross-entropy is minimised at epoch 0 while accuracy is still rising.
         model.eval()
         with torch.no_grad():
             pred = model(x_va_t).argmax(1)
@@ -85,11 +83,6 @@ def train_backbone(x_tr, y_tr, x_va, y_va, n_channels, n_classes, seed, device,
 
 
 def adapt_head(model, x_cal, y_cal, device, adaptation):
-    """Fine-tune the classifier on D_cal under an L2 pull to the source head (Eq. 2).
-
-    The backbone is frozen and its features are precomputed, so this is a small
-    problem solved in milliseconds.
-    """
     adapted = copy.deepcopy(model)
     source = {k: v.detach().clone()
               for k, v in adapted.classifier.module.named_parameters()}
@@ -120,13 +113,9 @@ def adapt_head(model, x_cal, y_cal, device, adaptation):
 
 
 def cross_fitted_logits(model, target, idx_cal, n_classes, device, adaptation):
-    """Out-of-fold logits for the calibration trials themselves.
-
-    The head is fitted on those trials, so their in-sample logits are far too
-    confident and a temperature fitted on them is useless. Adapting on 4/5 of
-    the block and predicting the held-out fifth gives honest calibration data
-    without spending any extra trials.
-    """
+    # The head is fitted on the calibration block, so its in-sample logits
+    # there are overconfident and unusable for calibration. Adapt on 4/5 of
+    # the block and predict the held-out fifth instead.
     out = np.full((len(target.y), n_classes), np.nan)
     for held in np.array_split(np.arange(len(idx_cal)), adaptation["n_folds"]):
         if len(held) == 0 or len(held) == len(idx_cal):

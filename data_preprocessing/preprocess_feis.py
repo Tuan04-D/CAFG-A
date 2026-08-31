@@ -1,12 +1,11 @@
-"""Turn the raw FEIS recordings into per-subject epoch archives.
+"""Build per-subject FEIS epoch archives from the raw recordings.
 
-FEIS ships trials already segmented into 5 s epochs at 256 Hz, so filtering is
-applied per epoch and no resampling is needed. No ICA: 14 channels are too few
-for a stable decomposition and the montage has no frontal-pole channels.
+Trials ship pre-segmented into 5 s epochs at 256 Hz, so filtering is per epoch
+and no resampling is needed. No ICA: 14 channels are too few for a stable
+decomposition and the montage has no frontal-pole channels.
 
 Band-pass and notch, common-average reference, baseline-correct against the
-matching resting epoch, drop bad epochs, then z-score per channel within
-subject. Writes <DATA_ROOT>/processed/feis/<subject>.npz plus a manifest.
+matching resting epoch, drop bad epochs, z-score per channel.
 """
 
 import csv

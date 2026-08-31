@@ -1,9 +1,4 @@
-"""Run CAFG-A over the leave-one-subject-out protocol and report the headline row.
-
-Usage:
-    python run_cafga.py                  # all seeds in config.SEEDS
-    python run_cafga.py --seeds 0        # a single seed, for a quick check
-"""
+"""Run the full leave-one-subject-out evaluation and summarise it."""
 
 import argparse
 import csv
@@ -22,17 +17,17 @@ from cafga.calibrate import (
     apply_prior_shift,
     apply_temperature,
     fit_prior_shift,
-    fit_sasts_temperature,
+    fit_shrunk_temperature,
     fit_temperature,
-    lambda_star,
+    shrinkage_strength,
     source_temperature_dispersion,
 )
 from cafga.data import (
-    _stable_seed,
     align,
     calibration_split,
     load_all,
     make_fold,
+    stable_seed,
     stack,
 )
 from cafga.gate import cost_gate
@@ -51,7 +46,7 @@ def run_fold(seed, target, subjects, device):
     target_data = subjects[target]
 
     model = train_backbone(x_tr, y_tr, x_va, y_va, cfg.N_CHANNELS, N_CLASSES,
-                           _stable_seed(seed, f"train-{target}") % (2 ** 31),
+                           stable_seed(seed, f"train-{target}") % (2 ** 31),
                            device, cfg.BACKBONE, cfg.TRAINING)
 
     idx_cal, idx_test = calibration_split(
@@ -60,7 +55,7 @@ def run_fold(seed, target, subjects, device):
     logits_srcval = forward_logits(model, x_va, device)
     t0 = fit_temperature(logits_srcval, y_va)
     sigma2 = source_temperature_dispersion(logits_srcval, y_va, subject_va)
-    lam = lambda_star(cfg.N_CAL, sigma2)
+    lam = shrinkage_strength(cfg.N_CAL, sigma2)
 
     adapted = adapt_head(model, target_data.x[idx_cal],
                          target_data.y[idx_cal], device, cfg.ADAPTATION)
@@ -71,14 +66,14 @@ def run_fold(seed, target, subjects, device):
     shift = fit_prior_shift(logits_adapted)
     logits_test = apply_prior_shift(logits_adapted[idx_test], shift)
     logits_fit = apply_prior_shift(logits_oof[idx_cal], shift)
-    t_s = fit_sasts_temperature(logits_fit, target_data.y[idx_cal], t0, lam)
+    t_s = fit_shrunk_temperature(logits_fit, target_data.y[idx_cal], t0, lam)
 
     probs = apply_temperature(logits_test, t_s)
     actions, lists = cost_gate(probs, cfg.C_E, cfg.C_F, cfg.C_S)
     row = summarise(probs, target_data.y[idx_test], actions, lists,
                     cfg.C_E, cfg.C_F, cfg.C_S, cfg.ALWAYS_CONFIRM_K,
                     cfg.TOP_K, cfg.ECE_BINS)
-    row.update(seed=seed, subject=target, t0=t0, t_s=t_s, lambda_star=lam)
+    row.update(seed=seed, subject=target, t0=t0, t_s=t_s, shrinkage=lam)
     return row
 
 

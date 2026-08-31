@@ -1,4 +1,4 @@
-"""Discrimination, calibration and system-level metrics (Eq. 8-12)."""
+"""Accuracy, calibration, selective-prediction and interaction-cost metrics."""
 
 import numpy as np
 
@@ -9,7 +9,6 @@ def top_k_accuracy(probs, y, k):
 
 
 def expected_calibration_error(probs, y, n_bins):
-    """ECE with equal-mass bins."""
     conf = probs.max(axis=1)
     correct = (probs.argmax(axis=1) == y).astype(float)
     n = len(y)
@@ -26,7 +25,6 @@ def expected_calibration_error(probs, y, n_bins):
 
 
 def aurc(probs, y):
-    """Area under the risk-coverage curve over kappa = top-1 probability."""
     conf = probs.max(axis=1)
     err = (probs.argmax(axis=1) != y).astype(float)
     order = np.argsort(-conf)
